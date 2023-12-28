@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading.Tasks;                                   // Delete =================================================
 
 namespace L50_carService
 {
@@ -21,7 +21,6 @@ namespace L50_carService
         private int[,] _priceList = new int[(int)CarModel.Max, (int)DetailType.Max];
         // Создасть словарь деталей?
         private Car _currentCar;
-        private Random _random;
 
         private int _maxPrice = 200;
         private int _minPrice = 55;
@@ -33,10 +32,8 @@ namespace L50_carService
         private int _countInjector;
         private int _countTramsmission;
 
-        public CarService(Random random)
+        public CarService()
         {
-            _random = random;
-
             FillStorage();
             FillPriceList();
         }
@@ -77,14 +74,14 @@ namespace L50_carService
             {
                 if (detailType == DetailType.Engine)
                     _countEngine--;
-                else if(detailType == DetailType.Carburetor)
+                else if (detailType == DetailType.Carburetor)
                     _countCarburetor--;
-                else if( detailType == DetailType.Injector)
+                else if (detailType == DetailType.Injector)
                     _countInjector--;
                 else
                     _countTramsmission--;
 
-                    // 
+                // 
             }
 
             return detail;
@@ -92,22 +89,22 @@ namespace L50_carService
 
         private Car GetNewClient()
         {
-            return new Car((CarModel)_random.Next((int)CarModel.Max), _random);
+            return new Car((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max));
         }
 
         private void FillPriceList()
         {
             for (int i = 0; i < (int)CarModel.Max; i++)
                 for (int j = 0; j < (int)DetailType.Max; j++)
-                    _priceList[i, j] = _random.Next(_minPrice, _maxPrice + 1);
+                    _priceList[i, j] = RandomGenerator.GetRandomNumber(_minPrice, _maxPrice + 1);
         }
 
         private void FillStorage()
         {
-            _countEngine = _random.Next(_minDetail, _maxDetail + 1);
-            _countCarburetor = _random.Next(_minDetail, _maxDetail + 1);
-            _countInjector = _random.Next(_minDetail, _maxDetail + 1);
-            _countTramsmission = _random.Next(_minDetail, _maxDetail + 1);
+            _countEngine = RandomGenerator.GetRandomNumber(_minDetail, _maxDetail + 1);
+            _countCarburetor = RandomGenerator.GetRandomNumber(_minDetail, _maxDetail + 1);
+            _countInjector = RandomGenerator.GetRandomNumber(_minDetail, _maxDetail + 1);
+            _countTramsmission = RandomGenerator.GetRandomNumber(_minDetail, _maxDetail + 1);
 
             CreateDetails(DetailType.Engine, _countEngine);
             CreateDetails(DetailType.Carburetor, _countCarburetor);
@@ -125,19 +122,19 @@ namespace L50_carService
                 switch (type)
                 {
                     case DetailType.Engine:
-                        newDetail = new Engine((CarModel)_random.Next((int)CarModel.Max), isWorking);         // Отдельный метод по созданию деталей в класс Деталей?
+                        newDetail = new Engine((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max), isWorking);         // Отдельный метод по созданию деталей в класс Деталей?
                         break;
 
                     case DetailType.Carburetor:
-                        newDetail = new Carburetor((CarModel)_random.Next((int)CarModel.Max), isWorking);      // Отдельный метод по созданию деталей в класс Деталей?
+                        newDetail = new Carburetor((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max), isWorking);      // Отдельный метод по созданию деталей в класс Деталей?
                         break;
 
                     case DetailType.Injector:
-                        newDetail = new Injector((CarModel)_random.Next((int)CarModel.Max), isWorking);        // Отдельный метод по созданию деталей в класс Деталей?
+                        newDetail = new Injector((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max), isWorking);        // Отдельный метод по созданию деталей в класс Деталей?
                         break;
 
                     case DetailType.Transmission:
-                        newDetail = new Transmission((CarModel)_random.Next((int)CarModel.Max), isWorking);        // Отдельный метод по созданию деталей в класс Деталей?
+                        newDetail = new Transmission((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max), isWorking);        // Отдельный метод по созданию деталей в класс Деталей?
                         break;
 
                     default:
@@ -152,16 +149,14 @@ namespace L50_carService
 
     class Car
     {
-        private Random _random;
         private Dictionary<DetailType, Detail> _mechanism = new Dictionary<DetailType, Detail>();
         //private CarModel Model;
 
-        public Car(CarModel model, Random random)
+        public Car(CarModel model)
         {
             Model = model;
-            _random = random;
 
-            int brokenDetail = _random.Next((int)DetailType.Max);
+            int brokenDetail = RandomGenerator.GetRandomNumber((int)DetailType.Max);
             bool isWorking = true;
 
             for (int i = 0; i < (int)DetailType.Max; i++)
@@ -232,7 +227,7 @@ namespace L50_carService
             return _isWorking;
         }
 
-        public abstract DetailType GetDetailType();         // Дублирует имя класса потому как GetType занята классом object
+        public abstract DetailType GetDetailType();
     }
 
     class Engine : Detail
@@ -247,10 +242,7 @@ namespace L50_carService
                 Console.WriteLine("В двигателе чтото стучит.");
         }
 
-        public override DetailType GetDetailType()
-        {
-            return DetailType.Engine;
-        }
+        public override DetailType GetDetailType() => DetailType.Engine;
     }
 
     class Carburetor : Detail
@@ -265,10 +257,7 @@ namespace L50_carService
                 Console.WriteLine("В двигателе чтото стучит.");
         }
 
-        public override DetailType GetDetailType()
-        {
-            return DetailType.Carburetor;
-        }
+        public override DetailType GetDetailType() => DetailType.Carburetor;
     }
 
     class Injector : Detail
@@ -283,10 +272,7 @@ namespace L50_carService
                 Console.WriteLine("В двигателе чтото стучит.");
         }
 
-        public override DetailType GetDetailType()
-        {
-            return DetailType.Injector;
-        }
+        public override DetailType GetDetailType() => DetailType.Injector;
     }
 
     class Transmission : Detail
@@ -301,13 +287,19 @@ namespace L50_carService
                 Console.WriteLine("В двигателе чтото стучит.");
         }
 
-        public override DetailType GetDetailType()
-        {
-            return DetailType.Transmission;
-        }
+        public override DetailType GetDetailType() => DetailType.Transmission;
     }
 
-    class Error
+    static class RandomGenerator
+    {
+        private static Random s_random = new Random();
+
+        public static int GetRandomNumber(int minValue, int maxValue) => s_random.Next(minValue, maxValue);
+
+        public static int GetRandomNumber(int maxValue) => s_random.Next(maxValue);
+    }
+
+    class Error                             // Перенести в основной класс
     {
         public static void Show()
         {
@@ -321,7 +313,7 @@ namespace L50_carService
         Reno,
         Audi,
         BMW,
-        Max,
+        Max,                // Убрать max
     }
 
     enum DetailType
@@ -330,6 +322,6 @@ namespace L50_carService
         Carburetor,
         Injector,
         Transmission,
-        Max,
+        Max,                // Убрать max
     }
 }
