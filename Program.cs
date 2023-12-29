@@ -1,9 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;                                   // Delete =================================================
 
 namespace L50_carService
 {
@@ -11,19 +7,22 @@ namespace L50_carService
     {
         static void Main(string[] args)
         {
+            CarService carService = new CarService();
+
+            carService.Run();
         }
     }
 
     class CarService
     {
-        private Dictionary<DetailType, Detail> _storage = new Dictionary<DetailType, Detail>();     // Переделать под массив, и при поиске у деталей запрашивать (тип детали и тип автомобиля)
-        //private Dictionary<int, int> _priceList = new Dictionary<int, int>();
-        private int[,] _priceList = new int[(int)CarModel.Max, (int)DetailType.Max];
-        // Создасть словарь деталей?
+        private IReadOnlyList<int> _detailsPrice;
+        private List<Detail> _storage = new List<Detail>();
+        private List<int> _workPrice = new List<int>();
+        private DetailCreater _detailCreater = new DetailCreater();
         private Car _currentCar;
 
-        private int _maxPrice = 200;
-        private int _minPrice = 55;
+        private int _maxWorkPrice = 200;
+        private int _minWorkPrice = 55;
         private int _maxDetail = 12;
         private int _minDetail = 4;
 
@@ -34,8 +33,8 @@ namespace L50_carService
 
         public CarService()
         {
+            FillPriceLists();
             FillStorage();
-            FillPriceList();
         }
 
         public void Run()   // Доделать
@@ -44,7 +43,7 @@ namespace L50_carService
             int price;
 
             // Найти поломку -> определить цену
-            DetailType brokenDetail = _currentCar.FindBreakdown();
+            DetailType brokenDetail = _currentCar.TryFindBrokenDetail();
             CarModel brokenDetailModel = _currentCar.Model;         // Нужна ли переменная?
 
             // Выбрать\найти деталь со склада
@@ -87,19 +86,20 @@ namespace L50_carService
             return detail;
         }
 
-        private Car GetNewClient()
+        private Car GetNewClient()                                                                  // Переделать
         {
             return new Car((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max));
         }
 
-        private void FillPriceList()
+        private void FillPriceLists()
         {
-            for (int i = 0; i < (int)CarModel.Max; i++)
-                for (int j = 0; j < (int)DetailType.Max; j++)
-                    _priceList[i, j] = RandomGenerator.GetRandomNumber(_minPrice, _maxPrice + 1);
+            _detailsPrice = _detailCreater.DetailsPrice;
+
+            for (int i = 0; i < _detailsPrice.Count; i++)
+                _workPrice.Add(RandomGenerator.GetRandomNumber(_minWorkPrice, _maxWorkPrice + 1));
         }
 
-        private void FillStorage()
+        private void FillStorage()                                                                  // Переделать
         {
             _countEngine = RandomGenerator.GetRandomNumber(_minDetail, _maxDetail + 1);
             _countCarburetor = RandomGenerator.GetRandomNumber(_minDetail, _maxDetail + 1);
@@ -112,7 +112,7 @@ namespace L50_carService
             CreateDetails(DetailType.Transmission, _countTramsmission);
         }
 
-        private void CreateDetails(DetailType type, int count)
+        private void CreateDetails(DetailType type, int count)                                                                  // Переделать
         {
             Detail newDetail = null;
             bool isWorking = true;
@@ -122,7 +122,7 @@ namespace L50_carService
                 switch (type)
                 {
                     case DetailType.Engine:
-                        newDetail = new Engine((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max), isWorking);         // Отдельный метод по созданию деталей в класс Деталей?
+                        _storage(new Engine((CarModel)RandomGenerator.GetRandomNumber((int)CarModel.Max), isWorking);         // Отдельный метод по созданию деталей в класс Деталей?
                         break;
 
                     case DetailType.Carburetor:
@@ -138,156 +138,105 @@ namespace L50_carService
                         break;
 
                     default:
-                        Error.Show();
+                        ShowError();
                         break;
                 }
 
                 _storage.Add(type, newDetail);
             }
         }
+
+        // Добавить генерато машин(с деталями) одна из деталей сломана.
+
+        public static void ShowError()          // Удалить если 1 вызов
+        {
+            Console.WriteLine("Некоректное значение.");
+        }
     }
 
     class Car
     {
-        private Dictionary<DetailType, Detail> _mechanism = new Dictionary<DetailType, Detail>();
-        //private CarModel Model;
+        private List<Detail> _details;
 
-        public Car(CarModel model)
+        public Car(CarModel model, List<Detail> details)
         {
             Model = model;
-
-            int brokenDetail = RandomGenerator.GetRandomNumber((int)DetailType.Max);
-            bool isWorking = true;
-
-            for (int i = 0; i < (int)DetailType.Max; i++)
-            {
-                if (brokenDetail == i)
-                    isWorking = false;
-
-                switch ((DetailType)i)
-                {
-                    case DetailType.Engine:
-                        _mechanism.Add((DetailType)i, new Engine(Model, isWorking));         // Отдельный метод по созданию деталей в класс Деталей?, добавление в механизм вынести из switch
-                        break;
-
-                    case DetailType.Carburetor:
-                        _mechanism.Add((DetailType)i, new Carburetor(Model, isWorking));         // Отдельный метод по созданию деталей в класс Деталей?, добавление в механизм вынести из switch
-                        break;
-
-                    case DetailType.Injector:
-                        _mechanism.Add((DetailType)i, new Injector(Model, isWorking));       // Отдельный метод по созданию деталей в класс Деталей?, добавление в механизм вынести из switch
-                        break;
-
-                    case DetailType.Transmission:
-                        _mechanism.Add((DetailType)i, new Transmission(Model, isWorking));       // Отдельный метод по созданию деталей в класс Деталей?, добавление в механизм вынести из switch
-                        break;
-
-                    default:
-                        Error.Show();
-                        break;
-                }
-            }
+            _details = details;
         }
 
         public CarModel Model { get; private set; }
 
-        public DetailType FindBreakdown()
+        public bool TryFindBrokenDetail(out Detail brokenDetail)
         {
-            DetailType brokenDetail = DetailType.Max;
+            brokenDetail = null;
 
-            foreach (var detail in _mechanism)
+            foreach (var detail in _details)
             {
-                detail.Value.Work();
-
-                if (detail.Value.CheckServiceability() == false)
-                    brokenDetail = detail.Key;
+                if (detail.CheckServiceability() == false)
+                {
+                    brokenDetail = detail;
+                    return true;
+                }
             }
 
-            return brokenDetail;
+            return false;
         }
     }
 
-    abstract class Detail
+    class Detail
     {
-        //private CarModel CarModel;
         private bool _isWorking;
 
-        public Detail(CarModel model, bool isWorking)
+        public Detail(DetailType type, CarModel model, int price, bool isWorking)
         {
+            Type = type;
             CarModel = model;
+            Price = price;
             _isWorking = isWorking;
         }
 
         public CarModel CarModel { get; private set; }
+        public DetailType Type { get; private set; }
+        public int Price { get; private set; }
 
-        public abstract void Work();
-
-        public bool CheckServiceability()
-        {
-            return _isWorking;
-        }
-
-        public abstract DetailType GetDetailType();
+        public bool CheckServiceability() => _isWorking;
     }
 
-    class Engine : Detail
+    class DetailCreater
     {
-        public Engine(CarModel model, bool isWorking) : base(model, isWorking) { }
+        private List<DetailType> _listDetails = new List<DetailType>();         // Тут нужно?
+        private List<CarModel> _listCarModels = new List<CarModel>();         // Тут нужно?
+        private List<int> _detailsPrice = new List<int>();
 
-        public override void Work()
+        private int _minPrice = 50;
+        private int _maxPrice = 300;
+
+        public DetailCreater()
         {
-            if (CheckServiceability())
-                Console.WriteLine("Двигатель мягко гудит.");
-            else
-                Console.WriteLine("В двигателе чтото стучит.");
+            var tempListCarModels = Enum.GetValues(typeof(CarModel));
+            var tempListDetails = Enum.GetValues(typeof(DetailType));
+
+            foreach (var carModel in tempListCarModels)
+                _listCarModels.Add((CarModel)carModel);
+
+            foreach (var detail in tempListDetails)
+            {
+                _listDetails.Add((DetailType)detail);
+                _detailsPrice.Add(RandomGenerator.GetRandomNumber(_minPrice, _maxPrice + 1));
+            }
         }
 
-        public override DetailType GetDetailType() => DetailType.Engine;
-    }
+        public IReadOnlyList<DetailType> ListDetails => _listDetails;                   // Удалить?
 
-    class Carburetor : Detail
-    {
-        public Carburetor(CarModel model, bool isWorking) : base(model, isWorking) { }
+        public IReadOnlyList<CarModel> ListCarModels => _listCarModels;                   // Удалить?
 
-        public override void Work()     // Переписать
+        public IReadOnlyList<int> DetailsPrice => _detailsPrice;
+
+        public Detail Create(DetailType type, CarModel model)
         {
-            if (CheckServiceability())
-                Console.WriteLine("Двигатель мягко гудит.");
-            else
-                Console.WriteLine("В двигателе чтото стучит.");
+            int index = _listDetails.FindIndex(detailType => detailType == type);                                                 // Проверить работоспособность
+            return new Detail(type, model, _detailsPrice[index], true);
         }
-
-        public override DetailType GetDetailType() => DetailType.Carburetor;
-    }
-
-    class Injector : Detail
-    {
-        public Injector(CarModel model, bool isWorking) : base(model, isWorking) { }
-
-        public override void Work()     // Переписать
-        {
-            if (CheckServiceability())
-                Console.WriteLine("Двигатель мягко гудит.");
-            else
-                Console.WriteLine("В двигателе чтото стучит.");
-        }
-
-        public override DetailType GetDetailType() => DetailType.Injector;
-    }
-
-    class Transmission : Detail
-    {
-        public Transmission(CarModel model, bool isWorking) : base(model, isWorking) { }
-
-        public override void Work()     // Переписать
-        {
-            if (CheckServiceability())
-                Console.WriteLine("Двигатель мягко гудит.");
-            else
-                Console.WriteLine("В двигателе чтото стучит.");
-        }
-
-        public override DetailType GetDetailType() => DetailType.Transmission;
     }
 
     static class RandomGenerator
@@ -299,21 +248,12 @@ namespace L50_carService
         public static int GetRandomNumber(int maxValue) => s_random.Next(maxValue);
     }
 
-    class Error                             // Перенести в основной класс
-    {
-        public static void Show()
-        {
-            Console.WriteLine("Некоректное значение.");
-        }
-    }
-
     enum CarModel
     {
         Ford,
         Reno,
         Audi,
         BMW,
-        Max,                // Убрать max
     }
 
     enum DetailType
@@ -322,6 +262,5 @@ namespace L50_carService
         Carburetor,
         Injector,
         Transmission,
-        Max,                // Убрать max
     }
 }
