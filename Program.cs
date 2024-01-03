@@ -18,21 +18,17 @@ namespace L50_carService
     {
         private List<int> _priceListDetails = new List<int>();
         private List<int> _priceListWorks = new List<int>();
-        private List<int> _detailsCount = new List<int>();
+        private Storage _storage = new Storage();
 
-        private List<Detail> _storage = new List<Detail>();
-        private List<string> _detailsList;
         private Car _currentCar;
         private float _penaltyPercentage;
         private int _money;
 
         public CarService()
         {
-            _detailsList = Enum.GetNames(typeof(DetailType)).ToList();
             _penaltyPercentage = 0.15f;
             _money = 150;
 
-            FillStorage();
             FillPriceLists();
         }
 
@@ -43,8 +39,6 @@ namespace L50_carService
             RepairCar,
             Exit,
         }
-
-        public IReadOnlyList<string> DetailList => _detailsList;
 
         public void Run()
         {
@@ -68,7 +62,7 @@ namespace L50_carService
                         switch ((Menu)number)
                         {
                             case Menu.FindPartInStock:
-                                FindDetailOnStorage((DetailType)partIndex);
+                                _storage.ContainsDetail((DetailType)partIndex);
                                 break;
 
                             case Menu.RefuseClient:
@@ -107,8 +101,8 @@ namespace L50_carService
         {
             Console.Clear();
 
-            for (int i = 0; i < _detailsList.Count; i++)
-                Console.WriteLine($"{i + 1} - {_detailsList[i]}");
+            for (int i = 0; i < _storage.DetailsList.Count; i++)
+                Console.WriteLine($"{i + 1} - {_storage.DetailsList[i]}");
 
             Console.Write("\nВыберите номер детали для замены: ");
 
@@ -116,7 +110,7 @@ namespace L50_carService
             {
                 numberDetail--;
 
-                if (TryGetDetail(out Detail newDetail, (DetailType)numberDetail))
+                if (_storage.TryGetDetail(out Detail newDetail, (DetailType)numberDetail))
                 {
                     if (indexBrokenDetail == numberDetail)
                     {
@@ -163,14 +157,14 @@ namespace L50_carService
 
         private void ShowMenu(int partIndex)
         {
-            const char DelimeterSymbol = '=';
-            const int DelimeterLenght = 50;
+            char delimeterSymbol = '=';
+            int delimeterLenght = 50;
 
-            string delimeter = new string(DelimeterSymbol, DelimeterLenght);
+            string delimeter = new string(delimeterSymbol, delimeterLenght);
 
             if (partIndex >= 0)
             {
-                Console.WriteLine($"У клиента сломан: {_detailsList[partIndex]}.\tЦена детали: {_priceListDetails[partIndex]}" +
+                Console.WriteLine($"У клиента сломан: {_storage.DetailsList[partIndex]}.\tЦена детали: {_priceListDetails[partIndex]}" +
                                   $".\tЦена за замену: {_priceListWorks[partIndex]}.\nВаш наличный баланс: {_money}.");
             }
             else
@@ -187,18 +181,54 @@ namespace L50_carService
         private int GetBrokenDetailIndex()
         {
             if (_currentCar.TryFindBrokenDetail(out Detail brokenDetail))
-                for (int i = 0; i < _detailsList.Count; i++)
-                    if (_detailsList[i].ToLower() == brokenDetail.Type.ToString().ToLower())
+                for (int i = 0; i < _storage.DetailsList.Count; i++)
+                    if (_storage.DetailsList[i].ToLower() == brokenDetail.Type.ToString().ToLower())
                         return i;
 
             return -1;
         }
 
-        private void FindDetailOnStorage(DetailType type)
+        private Car GetNewClient() => new Car(_storage.DetailsList);
+
+        private void FillPriceLists()
+        {
+            int maxPriceDetail = 200;
+            int minPriceDetail = 55;
+            int maxPriceWork = 100;
+            int minPriceWork = 20;
+
+            for (int i = 0; i < _storage.DetailsList.Count; i++)
+            {
+                _priceListDetails.Add(RandomGenerator.GetRandomNumber(minPriceDetail, maxPriceDetail + 1));
+                _priceListWorks.Add(RandomGenerator.GetRandomNumber(minPriceWork, maxPriceWork + 1));
+            }
+        }
+
+        private void ShowError()
+        {
+            Console.WriteLine("Некоректное значение.");
+        }
+    }
+
+    class Storage
+    {
+        private List<int> _detailsCount = new List<int>();
+        private List<Detail> _detailsName = new List<Detail>();
+        private List<string> _detailsList;
+
+        public Storage()
+        {
+            _detailsList = Enum.GetNames(typeof(DetailType)).ToList();
+            FillStorage();
+        }
+
+        public IReadOnlyList<string> DetailsList => _detailsList;
+
+        public void ContainsDetail(DetailType type)
         {
             bool isAvailable = false;
 
-            foreach (var detail in _storage)
+            foreach (var detail in _detailsName)
                 if (detail.Type == type)
                     isAvailable = true;
 
@@ -208,21 +238,21 @@ namespace L50_carService
                 Console.WriteLine("Такой детали нет на складе.");
         }
 
-        private bool TryGetDetail(out Detail detail, DetailType detailType)
+        public bool TryGetDetail(out Detail detail, DetailType detailType)
         {
-            for (int i = 0; i < _storage.Count; i++)
+            for (int i = 0; i < _detailsName.Count; i++)
             {
-                if (_storage[i].Type == detailType)
+                if (_detailsName[i].Type == detailType)
                 {
                     _detailsCount[i]--;
 
                     if (_detailsCount[i] == 0)
                     {
                         _detailsCount.RemoveAt(i);
-                        _storage.RemoveAt(i);
+                        _detailsName.RemoveAt(i);
                     }
 
-                    detail = new Detail(detailType, true);
+                    detail = new Detail(detailType, isWorking: true);
                     return true;
                 }
             }
@@ -231,40 +261,19 @@ namespace L50_carService
             return false;
         }
 
-        private Car GetNewClient() => new Car(DetailList);
-
-        private void FillPriceLists()
-        {
-            const int MaxPriceDetail = 200;
-            const int MinPriceDetail = 55;
-            const int MaxPriceWork = 100;
-            const int MinPriceWork = 20;
-
-            for (int j = 0; j < _detailsList.Count; j++)
-            {
-                _priceListDetails.Add(RandomGenerator.GetRandomNumber(MinPriceDetail, MaxPriceDetail + 1));
-                _priceListWorks.Add(RandomGenerator.GetRandomNumber(MinPriceWork, MaxPriceWork + 1));
-            }
-        }
-
         private void FillStorage()
         {
-            const int MaxDetailsCount = 12;
-            const int MinDetailsCount = 4;
+            int maxDetailsCount = 12;
+            int minDetailsCount = 4;
 
-            _storage.Add(new Detail(DetailType.Engine, true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(MinDetailsCount, MaxDetailsCount + 1));
-            _storage.Add(new Detail(DetailType.Carburetor, true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(MinDetailsCount, MaxDetailsCount + 1));
-            _storage.Add(new Detail(DetailType.Injector, true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(MinDetailsCount, MaxDetailsCount + 1));
-            _storage.Add(new Detail(DetailType.Transmission, true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(MinDetailsCount, MaxDetailsCount + 1));
-        }
-
-        private void ShowError()
-        {
-            Console.WriteLine("Некоректное значение.");
+            _detailsName.Add(new Detail(DetailType.Engine, isWorking: true));
+            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
+            _detailsName.Add(new Detail(DetailType.Carburetor, isWorking: true));
+            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
+            _detailsName.Add(new Detail(DetailType.Injector, isWorking: true));
+            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
+            _detailsName.Add(new Detail(DetailType.Transmission, isWorking: true));
+            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
         }
     }
 
@@ -274,25 +283,27 @@ namespace L50_carService
 
         public Car(IReadOnlyList<string> detailsList)
         {
-            int brokenDetail = RandomGenerator.GetRandomNumber(detailsList.Count);
+            int brokenDetailIndex = RandomGenerator.GetRandomNumber(detailsList.Count);
 
             for (int i = 0; i < detailsList.Count; i++)
             {
-                if (brokenDetail == i)
-                    _details.Add(new Detail((DetailType)i, false));
+                if (brokenDetailIndex == i)
+                    _details.Add(new Detail((DetailType)i, isWorking: false));
                 else
-                    _details.Add(new Detail((DetailType)i, true));
+                    _details.Add(new Detail((DetailType)i, isWorking: true));
             }
         }
 
         public bool TryFindBrokenDetail(out Detail brokenDetail)
         {
             foreach (var detail in _details)
+            {
                 if (detail.IsWorking == false)
                 {
                     brokenDetail = detail.Clone();
                     return true;
                 }
+            }
 
             brokenDetail = null;
             return false;
