@@ -110,7 +110,7 @@ namespace L50_carService
             {
                 numberDetail--;
 
-                if (_storage.TryGetDetail(out Detail newDetail, (DetailType)numberDetail))
+                if (_storage.TryGiveDetail(out Detail newDetail, (DetailType)numberDetail))
                 {
                     if (indexBrokenDetail == numberDetail)
                     {
@@ -212,8 +212,7 @@ namespace L50_carService
 
     class Storage
     {
-        private List<int> _detailsCount = new List<int>();
-        private List<Detail> _detailsName = new List<Detail>();
+        private List<Cell> _storage;
         private List<string> _detailsList;
 
         public Storage()
@@ -228,8 +227,8 @@ namespace L50_carService
         {
             bool isAvailable = false;
 
-            foreach (var detail in _detailsName)
-                if (detail.Type == type)
+            foreach (var cell in _storage)
+                if (cell.DetailType == type)
                     isAvailable = true;
 
             if (isAvailable)
@@ -238,21 +237,17 @@ namespace L50_carService
                 Console.WriteLine("Такой детали нет на складе.");
         }
 
-        public bool TryGetDetail(out Detail detail, DetailType detailType)
+        public bool TryGiveDetail(out Detail detail, DetailType detailType)
         {
-            for (int i = 0; i < _detailsName.Count; i++)
+            for (int i = 0; i < _storage.Count; i++)
             {
-                if (_detailsName[i].Type == detailType)
+                if (_storage[i].DetailType == detailType)
                 {
-                    _detailsCount[i]--;
+                    detail = _storage[i].GiveDetail();
 
-                    if (_detailsCount[i] == 0)
-                    {
-                        _detailsCount.RemoveAt(i);
-                        _detailsName.RemoveAt(i);
-                    }
+                    if (_storage[i].DetailCount == 0)
+                        _storage.RemoveAt(i);
 
-                    detail = new Detail(detailType, isWorking: true);
                     return true;
                 }
             }
@@ -265,15 +260,40 @@ namespace L50_carService
         {
             int maxDetailsCount = 12;
             int minDetailsCount = 4;
+            int detailsCount;
 
-            _detailsName.Add(new Detail(DetailType.Engine, isWorking: true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
-            _detailsName.Add(new Detail(DetailType.Carburetor, isWorking: true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
-            _detailsName.Add(new Detail(DetailType.Injector, isWorking: true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
-            _detailsName.Add(new Detail(DetailType.Transmission, isWorking: true));
-            _detailsCount.Add(RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1));
+            detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
+            _storage.Add(new Cell(new Detail(DetailType.Engine, isWorking: true), detailsCount));
+
+            detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
+            _storage.Add(new Cell(new Detail(DetailType.Carburetor, isWorking: true), detailsCount));
+
+            detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
+            _storage.Add(new Cell(new Detail(DetailType.Injector, isWorking: true), detailsCount));
+
+            detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
+            _storage.Add(new Cell(new Detail(DetailType.Transmission, isWorking: true), detailsCount));
+        }
+
+        private class Cell
+        {
+            private Detail _detail;
+            private int _detailCount;
+
+            public Cell(Detail detail, int detailCount)
+            {
+                _detail = detail;
+                _detailCount = detailCount;
+            }
+
+            public DetailType DetailType => _detail.Type;
+            public int DetailCount => _detailCount;
+
+            public Detail GiveDetail()
+            {
+                _detailCount--;
+                return new Detail(_detail);
+            }
         }
     }
 
@@ -286,12 +306,9 @@ namespace L50_carService
             int brokenDetailIndex = RandomGenerator.GetRandomNumber(detailsList.Count);
 
             for (int i = 0; i < detailsList.Count; i++)
-            {
-                if (brokenDetailIndex == i)
-                    _details.Add(new Detail((DetailType)i, isWorking: false));
-                else
-                    _details.Add(new Detail((DetailType)i, isWorking: true));
-            }
+                _details.Add(new Detail((DetailType)i, isWorking: true));
+
+            _details[brokenDetailIndex].BreakDetail();
         }
 
         public bool TryFindBrokenDetail(out Detail brokenDetail)
@@ -331,10 +348,18 @@ namespace L50_carService
             IsWorking = isWorking;
         }
 
+        public Detail(Detail detail)
+        {
+            Type = detail.Type;
+            IsWorking = detail.IsWorking;
+        }
+
         public DetailType Type { get; private set; }
         public bool IsWorking { get; private set; }
 
         public Detail Clone() => new Detail(Type, IsWorking);
+
+        public void BreakDetail() => IsWorking = false;
     }
 
     static class RandomGenerator
