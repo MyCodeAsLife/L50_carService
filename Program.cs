@@ -245,7 +245,7 @@ namespace L50_carService
                 {
                     detail = _storage[i].GiveDetail();
 
-                    if (_storage[i].DetailCount == 0)
+                    if (_storage[i].DetailsCount == 0)
                         _storage.RemoveAt(i);
 
                     return true;
@@ -278,20 +278,20 @@ namespace L50_carService
         private class Cell
         {
             private Detail _detail;
-            private int _detailCount;
+            private int _detailsCount;
 
-            public Cell(Detail detail, int detailCount)
+            public Cell(Detail detail, int detailsCount)
             {
                 _detail = detail;
-                _detailCount = detailCount;
+                _detailsCount = detailsCount;
             }
 
             public DetailType DetailType => _detail.Type;
-            public int DetailCount => _detailCount;
+            public int DetailsCount => _detailsCount;
 
             public Detail GiveDetail()
             {
-                _detailCount--;
+                _detailsCount--;
                 return new Detail(_detail);
             }
         }
