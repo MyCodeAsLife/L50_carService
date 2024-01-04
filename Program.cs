@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace L50_carService
 {
@@ -16,9 +18,8 @@ namespace L50_carService
 
     class CarService
     {
-        private List<int> _priceListDetails = new List<int>();
-        private List<int> _priceListWorks = new List<int>();
         private Storage _storage = new Storage();
+        private PriceList _priceList;
 
         private Car _currentCar;
         private float _penaltyPercentage;
@@ -28,8 +29,7 @@ namespace L50_carService
         {
             _penaltyPercentage = 0.15f;
             _money = 150;
-
-            FillPriceLists();
+            _priceList = new PriceList(_storage.DetailsList.Count);
         }
 
         private enum Menu
@@ -62,7 +62,7 @@ namespace L50_carService
                         switch ((Menu)number)
                         {
                             case Menu.FindPartInStock:
-                                _storage.ContainsDetail((DetailType)partIndex);
+                                SeeDetailAvailability((DetailType)partIndex);
                                 break;
 
                             case Menu.RefuseClient:
@@ -97,6 +97,14 @@ namespace L50_carService
             }
         }
 
+        private void SeeDetailAvailability(DetailType type)
+        {
+            if (_storage.ContainsDetail(type))
+                Console.WriteLine("Деталь есть в наличии.");
+            else
+                Console.WriteLine("Такой детали нет на складе.");
+        }
+
         private void RepairCar(int indexBrokenDetail)
         {
             Console.Clear();
@@ -115,8 +123,8 @@ namespace L50_carService
                     if (indexBrokenDetail == numberDetail)
                     {
                         _currentCar.ReplaceDetail(newDetail);
-                        _money += _priceListDetails[numberDetail];
-                        _money += _priceListWorks[numberDetail];
+                        _money += _priceList.Details[numberDetail];
+                        _money += _priceList.Works[numberDetail];
                         Console.WriteLine("Деталь успешна заменена.");
                     }
                     else
@@ -124,6 +132,9 @@ namespace L50_carService
                         Console.Write("Вы заменили не ту деталь");
                         PayFine(numberDetail);
                     }
+
+                    if (_storage.ContainsDetail((DetailType)numberDetail) == false)
+                        _priceList.RemoveAt(numberDetail);
                 }
                 else
                 {
@@ -141,14 +152,14 @@ namespace L50_carService
 
         private void PayFine(int detailIndex)
         {
-            int penalty = _priceListDetails[detailIndex] + _priceListWorks[detailIndex];
+            int penalty = _priceList.Details[detailIndex] + _priceList.Works[detailIndex];
             _money -= penalty;
             Console.WriteLine($" и вынуждены возместить ушерб в размере: {penalty}.");
         }
 
         private void RefuseClient(int partIndex)
         {
-            int penalty = (int)(_priceListDetails[partIndex] * _penaltyPercentage);
+            int penalty = (int)(_priceList.Details[partIndex] * _penaltyPercentage);
             _money -= penalty;
             Console.WriteLine($"Вы отказали клиенту и вынуждены были оплатить штраф: {penalty}");
 
@@ -164,8 +175,8 @@ namespace L50_carService
 
             if (partIndex >= 0)
             {
-                Console.WriteLine($"У клиента сломан: {_storage.DetailsList[partIndex]}.\tЦена детали: {_priceListDetails[partIndex]}" +
-                                  $".\tЦена за замену: {_priceListWorks[partIndex]}.\nВаш наличный баланс: {_money}.");
+                Console.WriteLine($"У клиента сломан: {_storage.DetailsList[partIndex]}.\tЦена детали: {_priceList.Details[partIndex]}" +
+                                  $".\tЦена за замену: {_priceList.Works[partIndex]}.\nВаш наличный баланс: {_money}.");
             }
             else
             {
@@ -190,23 +201,45 @@ namespace L50_carService
 
         private Car GetNewClient() => new Car(_storage.DetailsList);
 
-        private void FillPriceLists()
-        {
-            int maxPriceDetail = 200;
-            int minPriceDetail = 55;
-            int maxPriceWork = 100;
-            int minPriceWork = 20;
-
-            for (int i = 0; i < _storage.DetailsList.Count; i++)
-            {
-                _priceListDetails.Add(RandomGenerator.GetRandomNumber(minPriceDetail, maxPriceDetail + 1));
-                _priceListWorks.Add(RandomGenerator.GetRandomNumber(minPriceWork, maxPriceWork + 1));
-            }
-        }
-
         private void ShowError()
         {
             Console.WriteLine("Некоректное значение.");
+        }
+
+        private class PriceList
+        {
+            private List<int> _details = new List<int>();
+            private List<int> _works = new List<int>();
+
+            public PriceList(int detailsCount)
+            {
+                int maxPriceDetail = 200;
+                int minPriceDetail = 55;
+                int maxPriceWork = 100;
+                int minPriceWork = 20;
+
+                for (int i = 0; i < detailsCount; i++)
+                {
+                    _details.Add(RandomGenerator.GetRandomNumber(minPriceDetail, maxPriceDetail + 1));
+                    _works.Add(RandomGenerator.GetRandomNumber(minPriceWork, maxPriceWork + 1));
+                }
+            }
+
+            public IReadOnlyList<int> Details => _details;
+            public IReadOnlyList<int> Works => _works;
+
+            public void RemoveAt(int index)
+            {
+                if (index < _details.Count && index >= 0)
+                {
+                    _details.RemoveAt(index);
+                    _works.RemoveAt(index);
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException();
+                }
+            }
         }
     }
 
@@ -223,18 +256,13 @@ namespace L50_carService
 
         public IReadOnlyList<string> DetailsList => _detailsList;
 
-        public void ContainsDetail(DetailType type)
+        public bool ContainsDetail(DetailType type)
         {
-            bool isAvailable = false;
-
             foreach (var cell in _storage)
                 if (cell.DetailType == type)
-                    isAvailable = true;
+                    return true;
 
-            if (isAvailable)
-                Console.WriteLine("Деталь есть в наличии.");
-            else
-                Console.WriteLine("Такой детали нет на складе.");
+            return false;
         }
 
         public bool TryGiveDetail(out Detail detail, DetailType detailType)
