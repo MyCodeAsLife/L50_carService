@@ -29,7 +29,7 @@ namespace L50_carService
         {
             _penaltyPercentage = 0.15f;
             _money = 150;
-            _priceList = new PriceList(_storage.DetailsList.Count);
+            _priceList = new PriceList();
         }
 
         private enum Menu
@@ -51,8 +51,8 @@ namespace L50_carService
 
                 if (_money > 0)
                 {
-                    int partIndex = GetBrokenDetailIndex();
-                    ShowMenu(partIndex);
+                    DetailType type = GetBrokenDetailType();
+                    ShowMenu(type);
                     Console.Write("Выберите действие: ");
 
                     if (int.TryParse(Console.ReadLine(), out int number))
@@ -62,15 +62,15 @@ namespace L50_carService
                         switch ((Menu)number)
                         {
                             case Menu.FindPartInStock:
-                                SeeDetailAvailability((DetailType)partIndex);
+                                SeeDetailAvailability(type);
                                 break;
 
                             case Menu.RefuseClient:
-                                RefuseClient(partIndex);
+                                RefuseClient(type);
                                 break;
 
                             case Menu.RepairCar:
-                                RepairCar(partIndex);
+                                RepairCar(type);
                                 break;
 
                             case Menu.Exit:
@@ -105,41 +105,41 @@ namespace L50_carService
                 Console.WriteLine("Такой детали нет на складе.");
         }
 
-        private void RepairCar(int indexBrokenDetail)
+        private void RepairCar(DetailType brokenDetail)
         {
             Console.Clear();
 
             for (int i = 0; i < _storage.DetailsList.Count; i++)
                 Console.WriteLine($"{i + 1} - {_storage.DetailsList[i]}");
 
-            Console.Write("\nВыберите номер детали для замены: ");
+            Console.Write("\nВыберите тип детали для замены: ");
 
-            if (int.TryParse(Console.ReadLine(), out int numberDetail))
+            if (Enum.TryParse(Console.ReadLine(), out DetailType type))
             {
-                numberDetail--;
+                type--;
 
-                if (_storage.TryGiveDetail(out Detail newDetail, (DetailType)numberDetail))
+                if (_storage.TryGiveDetail(out Detail newDetail, type))
                 {
-                    if (indexBrokenDetail == numberDetail)
+                    if (brokenDetail == type)
                     {
                         _currentCar.ReplaceDetail(newDetail);
-                        _money += _priceList.Details[numberDetail];
-                        _money += _priceList.Works[numberDetail];
+                        _money += _priceList.Details[type];
+                        _money += _priceList.Works[type];
                         Console.WriteLine("Деталь успешна заменена.");
                     }
                     else
                     {
                         Console.Write("Вы заменили не ту деталь");
-                        PayFine(numberDetail);
+                        PayFine(type);
                     }
 
-                    if (_storage.ContainsDetail((DetailType)numberDetail) == false)
-                        _priceList.RemoveAt(numberDetail);
+                    if (_storage.ContainsDetail((DetailType)type) == false)
+                        _priceList.Remove(type);
                 }
                 else
                 {
                     Console.Write($"На складе нет выбранной детали");
-                    PayFine(numberDetail);
+                    PayFine(type);
                 }
 
                 _currentCar = GetNewClient();
@@ -150,38 +150,31 @@ namespace L50_carService
             }
         }
 
-        private void PayFine(int detailIndex)
+        private void PayFine(DetailType type)
         {
-            int penalty = _priceList.Details[detailIndex] + _priceList.Works[detailIndex];
+            int penalty = _priceList.Details[type] + _priceList.Works[type];
             _money -= penalty;
             Console.WriteLine($" и вынуждены возместить ушерб в размере: {penalty}.");
         }
 
-        private void RefuseClient(int partIndex)
+        private void RefuseClient(DetailType type)
         {
-            int penalty = (int)(_priceList.Details[partIndex] * _penaltyPercentage);
+            int penalty = (int)(_priceList.Details[type] * _penaltyPercentage);
             _money -= penalty;
             Console.WriteLine($"Вы отказали клиенту и вынуждены были оплатить штраф: {penalty}");
 
             _currentCar = GetNewClient();
         }
 
-        private void ShowMenu(int partIndex)
+        private void ShowMenu(DetailType type)
         {
             char delimeterSymbol = '=';
             int delimeterLenght = 50;
 
             string delimeter = new string(delimeterSymbol, delimeterLenght);
 
-            if (partIndex >= 0)
-            {
-                Console.WriteLine($"У клиента сломан: {_storage.DetailsList[partIndex]}.\tЦена детали: {_priceList.Details[partIndex]}" +
-                                  $".\tЦена за замену: {_priceList.Works[partIndex]}.\nВаш наличный баланс: {_money}.");
-            }
-            else
-            {
-                Console.WriteLine("В машине клинте поломка не обнаружена.");
-            }
+            Console.WriteLine($"У клиента сломан: {_storage.DetailsList[(int)type]}.\tЦена детали: {_priceList.Details[type]}" +
+                              $".\tЦена за замену: {_priceList.Works[type]}.\nВаш наличный баланс: {_money}.");
 
             Console.WriteLine(delimeter);
             Console.WriteLine($"{((int)Menu.FindPartInStock) + 1} - Найти деталь на складе.\n{((int)Menu.RefuseClient) + 1} - Отказать клиенту.\n" +
@@ -189,14 +182,15 @@ namespace L50_carService
             Console.WriteLine(delimeter);
         }
 
-        private int GetBrokenDetailIndex()
+        private DetailType GetBrokenDetailType()
         {
-            if (_currentCar.TryFindBrokenDetail(out Detail brokenDetail))
-                for (int i = 0; i < _storage.DetailsList.Count; i++)
-                    if (_storage.DetailsList[i].ToLower() == brokenDetail.Type.ToString().ToLower())
-                        return i;
+            Detail brokenDetail = _currentCar.GetBrokenDetail();
 
-            return -1;
+            for (int i = 0; i < _storage.DetailsList.Count; i++)
+                if (_storage.DetailsList[i].ToLower() == brokenDetail.Type.ToString().ToLower())
+                    return (DetailType)i;
+
+            return (DetailType)(-1);
         }
 
         private Car GetNewClient() => new Car(_storage.DetailsList);
@@ -208,44 +202,39 @@ namespace L50_carService
 
         private class PriceList
         {
-            private List<int> _details = new List<int>();
-            private List<int> _works = new List<int>();
+            private Dictionary<DetailType, int> _details = new Dictionary<DetailType, int>();
+            private Dictionary<DetailType, int> _works = new Dictionary<DetailType, int>();
 
-            public PriceList(int detailsCount)
+            public PriceList()
             {
                 int maxPriceDetail = 200;
                 int minPriceDetail = 55;
                 int maxPriceWork = 100;
                 int minPriceWork = 20;
 
+                int detailsCount = Enum.GetValues(typeof(DetailType)).Length;
+
                 for (int i = 0; i < detailsCount; i++)
                 {
-                    _details.Add(RandomGenerator.GetRandomNumber(minPriceDetail, maxPriceDetail + 1));
-                    _works.Add(RandomGenerator.GetRandomNumber(minPriceWork, maxPriceWork + 1));
+                    _details.Add((DetailType)i, RandomGenerator.GetRandomNumber(minPriceDetail, maxPriceDetail + 1));
+                    _works.Add((DetailType)i, RandomGenerator.GetRandomNumber(minPriceWork, maxPriceWork + 1));
                 }
             }
 
-            public IReadOnlyList<int> Details => _details;
-            public IReadOnlyList<int> Works => _works;
+            public IReadOnlyDictionary<DetailType, int> Details => _details;
+            public IReadOnlyDictionary<DetailType, int> Works => _works;
 
-            public void RemoveAt(int index)
+            public void Remove(DetailType type)
             {
-                if (index < _details.Count && index >= 0)
-                {
-                    _details.RemoveAt(index);
-                    _works.RemoveAt(index);
-                }
-                else
-                {
-                    throw new ArgumentOutOfRangeException();
-                }
+                _details.Remove(type);
+                _works.Remove(type);
             }
         }
     }
 
     class Storage
     {
-        private List<Cell> _storage;
+        private List<Cell> _cells;
         private List<string> _detailsList;
 
         public Storage()
@@ -258,7 +247,7 @@ namespace L50_carService
 
         public bool ContainsDetail(DetailType type)
         {
-            foreach (var cell in _storage)
+            foreach (var cell in _cells)
                 if (cell.DetailType == type)
                     return true;
 
@@ -267,14 +256,14 @@ namespace L50_carService
 
         public bool TryGiveDetail(out Detail detail, DetailType detailType)
         {
-            for (int i = 0; i < _storage.Count; i++)
+            for (int i = 0; i < _cells.Count; i++)
             {
-                if (_storage[i].DetailType == detailType)
+                if (_cells[i].DetailType == detailType)
                 {
-                    detail = _storage[i].GiveDetail();
+                    detail = _cells[i].GiveDetail();
 
-                    if (_storage[i].DetailsCount == 0)
-                        _storage.RemoveAt(i);
+                    if (_cells[i].DetailsCount == 0)
+                        _cells.RemoveAt(i);
 
                     return true;
                 }
@@ -291,16 +280,16 @@ namespace L50_carService
             int detailsCount;
 
             detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
-            _storage.Add(new Cell(new Detail(DetailType.Engine, isWorking: true), detailsCount));
+            _cells.Add(new Cell(new Detail(DetailType.Engine, isWorking: true), detailsCount));
 
             detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
-            _storage.Add(new Cell(new Detail(DetailType.Carburetor, isWorking: true), detailsCount));
+            _cells.Add(new Cell(new Detail(DetailType.Carburetor, isWorking: true), detailsCount));
 
             detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
-            _storage.Add(new Cell(new Detail(DetailType.Injector, isWorking: true), detailsCount));
+            _cells.Add(new Cell(new Detail(DetailType.Injector, isWorking: true), detailsCount));
 
             detailsCount = RandomGenerator.GetRandomNumber(minDetailsCount, maxDetailsCount + 1);
-            _storage.Add(new Cell(new Detail(DetailType.Transmission, isWorking: true), detailsCount));
+            _cells.Add(new Cell(new Detail(DetailType.Transmission, isWorking: true), detailsCount));
         }
 
         private class Cell
@@ -336,22 +325,16 @@ namespace L50_carService
             for (int i = 0; i < detailsList.Count; i++)
                 _details.Add(new Detail((DetailType)i, isWorking: true));
 
-            _details[brokenDetailIndex].BreakDetail();
+            _details[brokenDetailIndex].Break();
         }
 
-        public bool TryFindBrokenDetail(out Detail brokenDetail)
+        public Detail GetBrokenDetail()
         {
             foreach (var detail in _details)
-            {
                 if (detail.IsWorking == false)
-                {
-                    brokenDetail = detail.Clone();
-                    return true;
-                }
-            }
+                    return detail.Clone();
 
-            brokenDetail = null;
-            return false;
+            return null;
         }
 
         public void ReplaceDetail(Detail newDetail)
@@ -387,7 +370,7 @@ namespace L50_carService
 
         public Detail Clone() => new Detail(Type, IsWorking);
 
-        public void BreakDetail() => IsWorking = false;
+        public void Break() => IsWorking = false;
     }
 
     static class RandomGenerator
